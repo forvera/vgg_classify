@@ -1,6 +1,7 @@
 import os
 import tensorflow as tf
 import datetime
+import numpy as np
 from nets.vgg.vgg_16 import vgg_16
 from nets.vgg.tools import loss, optimize, accuracy
 from config.config import cfg
@@ -16,25 +17,33 @@ def train():
     train_image_path = cfg.TRAIN_IMAGE_PATH
     val_image_path = cfg.VAL_IMAGE_PATH
     trainable = cfg.TRAINABLE
+    ckpt_path = cfg.CKPT_PATH
 
     x = tf.placeholder(tf.float32, [None, 224, 224, 3])
     y = tf.placeholder(tf.float32, [None, num_classes])
     keep_prob = tf.placeholder(tf.float32)
 
-    model = vgg_16('./pretrained/vgg_16/vgg_16.ckpt', trainable, dropout_keep_prob)
+    model = vgg_16(trainable, dropout_keep_prob)
 
-    saver = tf.train.Saver()
+    predict = model.build(x)
+    
 
     train_processor = BatchPreprocessor(os.path.join(txt_file_path, 'train.txt'), train_image_path, num_classes, shuffle=True)
     test_processor = BatchPreprocessor(os.path.join(txt_file_path, 'val.txt'), val_image_path, num_classes, shuffle=True)
 
     # Get the number of training/validation steps per epoch
-    train_batches_per_epoch = np.floor(train_processor.labels.size / batch_size).astype(np.int16)
-    val_batches_per_epoch = np.floor(test_processor.labels.size / batch_size).astype(np.int16)
+    train_batches_per_epoch = np.floor(len(train_processor.labels)/ batch_size).astype(np.int16)
+    val_batches_per_epoch = np.floor(len(test_processor.labels) / batch_size).astype(np.int16)
 
     with tf.device('/cpu:0'):
         with tf.Session() as sess:
-            sess.run(tf.globel_variables_initializer())
+            # sess.run(tf.globel_variables_initializer())
+            if os.path.exists(ckpt_path):
+                variables = tf.contrib.framework.get_variables_to_restore()
+                variables_to_restore = [v for v in variables if v.name.split('/')[0]!='fc8']
+                saver = tf.train.Saver(variables_to_restore)
+                saver.restore(sess, ckpt_path)
+            
             for epoch in range(num_epochs):
                 print("{} Epoch number: {}".format(datetime.datetime.now(), epoch+1))
                 step = 1

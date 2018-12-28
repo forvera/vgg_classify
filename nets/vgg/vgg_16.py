@@ -2,13 +2,13 @@ import tensorflow as tf
 from nets.vgg.tools import ckpt2npy
 
 class vgg_16():
-    
+
     def __init__(self, num_classes, trainable=True, keep_prob=0.5):
         self.num_classes = num_classes
         self.trainable = trainable
         self.keep_prob = keep_prob
 
-    def build(self, rgb_x):
+    def build(self, rgb_x, reuse):
         """
         load variable from npy to build the VGG
         :param x: x image [batch, height, width, 3] values scaled [0, 1]
@@ -25,49 +25,54 @@ class vgg_16():
             red - VGG_MEAN[2]   
         ])
         assert bgr_x.get_shape().as_list()[1:] == [224, 224, 3]
+        with tf.variable_scope('vgg_16'):
+            with tf.variable_scope('conv1'):
+                self.conv1_1 = self._conv_layer(rgb_x, kernels=[3, 3, 3, 64], name='conv1_1', reuse=reuse)
+                self.conv1_2 = self._conv_layer(self.conv1_1, kernels=[3, 3, 64, 64], name='conv1_2', reuse=reuse)
+                self.pool1 = self._max_pool(self.conv1_2, name='pool1')
 
-        self.conv1_1 = self._conv_layer(rgb_x, kernels=[3, 3, 3, 64], name='conv1_1', reuse=True)
-        self.conv1_2 = self._conv_layer(self.conv1_1, kernels=[3, 3, 64, 64], name='conv1_2', reuse=True)
-        self.pool1 = self._max_pool(self.conv1_2, name='pool1')
+            with tf.variable_scope('conv2'):
+                self.conv2_1 = self._conv_layer(self.pool1, kernels=[3, 3, 64, 128], name='conv2_1', reuse=reuse)
+                self.conv2_2 = self._conv_layer(self.conv2_1, kernels=[3, 3, 128, 128], name='conv2_2', reuse=reuse)
+                self.pool2 = self._max_pool(self.conv2_2, name='pool2')
 
-        self.conv2_1 = self._conv_layer(self.pool1, kernels=[3, 3, 64, 128], name='conv2_1', reuse=True)
-        self.conv2_2 = self._conv_layer(self.conv2_1, kernels=[3, 3, 128, 128], name='conv2_2', reuse=True)
-        self.pool2 = self._max_pool(self.conv2_2, name='pool2')
+            with tf.variable_scope('conv3'):
+                self.conv3_1 = self._conv_layer(self.pool2, kernels=[3, 3, 128, 256], name='conv3_1', reuse=reuse)
+                self.conv3_2 = self._conv_layer(self.conv3_1, kernels=[3, 3, 256, 256], name='conv3_2', reuse=reuse)
+                self.conv3_3 = self._conv_layer(self.conv3_2, kernels=[3, 3, 256, 256], name='conv3_3', reuse=reuse)
+                self.pool3 = self._max_pool(self.conv3_3, name='pool3')
 
-        self.conv3_1 = self._conv_layer(self.pool2, kernels=[3, 3, 128, 256], name='conv3_1', reuse=True)
-        self.conv3_2 = self._conv_layer(self.conv3_1, kernels=[3, 3, 256, 256], name='conv3_2', reuse=True)
-        self.conv3_3 = self._conv_layer(self.conv3_2, kernels=[3, 3, 256, 256], name='conv3_3', reuse=True)
-        self.pool3 = self._max_pool(self.conv3_3, name='pool3')
+            with tf.variable_scope('conv4'):
+                self.conv4_1 = self._conv_layer(self.pool3, kernels=[3, 3, 256, 512], name='conv4_1', reuse=reuse)
+                self.conv4_2 = self._conv_layer(self.conv4_1, kernels=[3, 3, 512, 512], name='conv4_2', reuse=reuse)
+                self.conv4_3 = self._conv_layer(self.conv4_2, kernels=[3, 3, 512, 512], name='conv4_3', reuse=reuse)
+                self.pool4 = self._max_pool(self.conv4_3, name='pool4')
 
-        self.conv4_1 = self._conv_layer(self.pool3, kernels=[3, 3, 256, 512], name='conv4_1', reuse=True)
-        self.conv4_2 = self._conv_layer(self.conv4_1, kernels=[3, 3, 512, 512], name='conv4_2', reuse=True)
-        self.conv4_3 = self._conv_layer(self.conv4_2, kernels=[3, 3, 512, 512], name='conv4_3', reuse=True)
-        self.pool4 = self._max_pool(self.conv4_3, name='pool4')
+            with tf.variable_scope('conv5'):
+                self.conv5_1 = self._conv_layer(self.pool4, kernels=[3, 3, 512, 512], name='conv5_1', reuse=reuse)
+                self.conv5_2 = self._conv_layer(self.conv5_1, kernels=[3, 3, 512, 512], name='conv5_2', reuse=reuse)
+                self.conv5_3 = self._conv_layer(self.conv5_2, kernels=[3, 3, 512, 512], name='conv5_3', reuse=reuse)
+                self.pool5 = self._max_pool(self.conv5_3, name='pool5')
 
-        self.conv5_1 = self._conv_layer(self.pool4, kernels=[3, 3, 512, 512], name='conv5_1', reuse=True)
-        self.conv5_2 = self._conv_layer(self.conv5_1, kernels=[3, 3, 512, 512], name='conv5_2', reuse=True)
-        self.conv5_3 = self._conv_layer(self.conv5_2, kernels=[3, 3, 512, 512], name='conv5_3', reuse=True)
-        self.pool5 = self._max_pool(self.conv5_3, name='pool5')
+            with tf.variable_scope('fatten'):
+                shape = self.pool5.get_shape().as_list()
+                dim = 1
+                for d in shape[1:]:
+                    dim *= d
+                self.fatten = tf.reshape(self.pool5, [-1, dim])
 
-        with tf.variable_scope('fatten'):
-            shape = self.pool5.get_shape().as_list()
-            dim = 1
-            for d in shape[1:]:
-                dim *= d
-            self.fatten = tf.reshape(self.pool5, [-1, dim])
+            self.fc6 = self._fc_layer(self.fatten, 4096, name='fc6', reuse=reuse)
+            assert self.fc6.get_shape().as_list()[1:] == [4096]
+            self.relu6 = tf.nn.relu(self.fc6)
+            if self.trainable:
+                self.relu6 = self._dropout_layer(self.relu6, name='fc6_drop', keep_prob=self.keep_prob)
 
-        self.fc6 = self._fc_layer(self.fatten, 4096, name='fc6', reuse=True)
-        assert self.fc6.get_shape().as_list()[1:] == [4096]
-        self.relu6 = tf.nn.relu(self.fc6)
-        if self.trainable:
-            self.relu6 = self._dropout_layer(self.relu6, name='fc6_drop', keep_prob=self.keep_prob)
+            self.fc7 = self._fc_layer(self.relu6, 4096, name='fc7', reuse=reuse)
+            self.relu7 = tf.nn.relu(self.fc7)
+            if self.trainable:
+                self.relu7 = self._dropout_layer(self.relu7, name='fc7_drop', keep_prob=self.keep_prob)
 
-        self.fc7 = self._fc_layer(self.relu6, 4096, name='fc7', reuse=True)
-        self.relu7 = tf.nn.relu(self.fc7)
-        if self.trainable:
-            self.relu7 = self._dropout_layer(self.relu7, name='fc7_drop', keep_prob=self.keep_prob)
-
-        self.fc8 = self._fc_layer(self.relu7, self.num_classes, name='fc8', reuse=True)
+            self.fc8 = self._fc_layer(self.relu7, self.num_classes, name='fc8', reuse=reuse)
         predict = self.fc8
         return predict
 
@@ -80,9 +85,7 @@ class vgg_16():
     def _conv_layer(self, x, name, kernels, activation='relu', strides=[1, 1, 1, 1], padding='SAME', is_training=False, reuse=None):
         with tf.variable_scope(name, reuse=reuse):
             kernel = tf.get_variable(name='weights', shape=kernels, initializer=tf.truncated_normal_initializer(0, 1))
-            print(kernel.name)
             biases = tf.get_variable(name='biases', shape=kernels[-1], initializer=tf.truncated_normal_initializer(0, 1))
-            print(biases.name)
             conv = tf.nn.conv2d(x, kernel, strides=strides, padding=padding)
             bias = tf.nn.bias_add(conv, biases)
             if activation=='relu':

@@ -23,10 +23,9 @@ def train():
     y = tf.placeholder(tf.float32, [None, num_classes])
     keep_prob = tf.placeholder(tf.float32)
 
-    model = vgg_16(trainable, dropout_keep_prob)
+    model = vgg_16(trainable, num_classes, dropout_keep_prob)
 
-    predict = model.build(x)
-    
+    predict = model.build(x, reuse=False)
 
     train_processor = BatchPreprocessor(os.path.join(txt_file_path, 'train.txt'), train_image_path, num_classes, shuffle=True)
     test_processor = BatchPreprocessor(os.path.join(txt_file_path, 'val.txt'), val_image_path, num_classes, shuffle=True)
@@ -35,20 +34,20 @@ def train():
     train_batches_per_epoch = np.floor(len(train_processor.labels)/ batch_size).astype(np.int16)
     val_batches_per_epoch = np.floor(len(test_processor.labels) / batch_size).astype(np.int16)
 
-    with tf.device('/cpu:0'):
-        with tf.Session() as sess:
-            # sess.run(tf.globel_variables_initializer())
-            if os.path.exists(ckpt_path):
-                variables = tf.contrib.framework.get_variables_to_restore()
-                variables_to_restore = [v for v in variables if v.name.split('/')[0]!='fc8']
-                saver = tf.train.Saver(variables_to_restore)
-                saver.restore(sess, ckpt_path)
-            
-            for epoch in range(num_epochs):
-                print("{} Epoch number: {}".format(datetime.datetime.now(), epoch+1))
-                step = 1
-                while step < train_batches_per_epoch:
-                    batch_x, batch_y = train_processor.next_batch(batch_size)
+    # with tf.device('/gpu:0'):
+    with tf.Session() as sess:
+        sess.run(tf.global_variables_initializer())
+        if os.path.exists(ckpt_path):
+            variables = tf.contrib.framework.get_variables_to_restore()
+            variables_to_restore = [v for v in variables if v.name.split('/')[1]!='fc8']
+            saver = tf.train.Saver(variables_to_restore)
+            saver.restore(sess, ckpt_path)
+
+        for epoch in range(num_epochs):
+            print("{} Epoch number: {}".format(datetime.datetime.now(), epoch+1))
+            step = 1
+            while step < train_batches_per_epoch:
+                batch_x, batch_y = train_processor.next_batch(batch_size)
 
 
 

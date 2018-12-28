@@ -46,6 +46,6 @@ def ckpt2npy(file_path):
 
 if __name__ == '__main__':
 
-    file_path = './pretrained/vgg_16/vgg_16.ckpt'
+    file_path = './pretrained/vgg_16.ckpt'
     data = ckpt2npy(file_path)
     print('end')
